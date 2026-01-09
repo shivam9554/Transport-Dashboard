@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Shivam Transport System</title>
+
+<!-- Excel Export -->
+<script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+<!-- PDF Export -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+
+<style>
+*{box-sizing:border-box;font-family:Arial;}
+body{margin:0;background:#eef2f7;}
+.hidden{display:none;}
+input, select, button{padding:8px;margin:5px;width:200px;}
+button{cursor:pointer;}
+.table-box table{width:100%;border-collapse:collapse;margin-top:10px;}
+.table-box th, .table-box td{border:1px solid #ccc;padding:8px;text-align:center;}
+.table-box th{background:#f0f0f0;}
+h1,h2,h3,h4,h5{margin:5px 0;}
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+<h2>Login - Shivam Transport</h2>
+<input id="loginUser" placeholder="Username"><br>
+<input id="loginPass" placeholder="Password" type="password"><br>
+<button onclick="login()">Login</button>
+</div>
+
+<!-- SYSTEM -->
+<div id="system" class="hidden">
+
+<h1>🚚 Shivam Transport Dashboard</h1>
+<button onclick="show('dashboard')">Dashboard</button>
+<button onclick="show('vehicles')">Vehicles</button>
+<button onclick="show('drivers')">Drivers</button>
+<button onclick="show('trips')">Trips</button>
+
+<!-- DASHBOARD -->
+<div id="dashboard" class="section">
+<h3>Dashboard</h3>
+<p>Total Vehicles: <span id="dv">0</span></p>
+<p>Total Drivers: <span id="dd">0</span></p>
+<p>Total Bhada: ₹<span id="db">0</span></p>
+<p>Total Karcha: ₹<span id="dk">0</span></p>
+<p>Total Profit: ₹<span id="dp">0</span></p>
+
+<h4>Vehicle Wise Profit</h4>
+<div class="table-box">
+<table>
+<thead><tr><th>Vehicle</th><th>Bhada</th><th>Karcha</th><th>Profit</th></tr></thead>
+<tbody id="vehicleProfit"></tbody>
+</table>
+</div>
+</div>
+
+<!-- VEHICLES -->
+<div id="vehicles" class="section hidden">
+<h3>Add Vehicle</h3>
+<input id="vNo" placeholder="Vehicle No">
+<input id="vModel" placeholder="Model">
+<button onclick="addVehicle()">Save</button>
+
+<div class="table-box">
+<table>
+<thead><tr><th>No</th><th>Model</th><th>Action</th></tr></thead>
+<tbody id="vTable"></tbody>
+</table>
+</div>
+</div>
+
+<!-- DRIVERS -->
+<div id="drivers" class="section hidden">
+<h3>Add Driver</h3>
+<input id="dName" placeholder="Driver Name">
+<input id="dPhone" placeholder="Phone">
+<button onclick="addDriver()">Save</button>
+
+<div class="table-box">
+<table>
+<thead><tr><th>Name</th><th>Phone</th><th>Action</th></tr></thead>
+<tbody id="dTable"></tbody>
+</table>
+</div>
+</div>
+
+<!-- TRIPS -->
+<div id="trips" class="section hidden">
+<h3>Add Trip</h3>
+
+<input type="date" id="tDate">
+<select id="tVehicle"></select>
+<select id="tDriver"></select>
+<input id="tBill" placeholder="Bill No">
+<input id="tBhada" placeholder="Bhada">
+<input id="tToll" placeholder="Toll">
+<input id="tFuel" placeholder="Fuel">
+<input id="tOther" placeholder="Other Expense">
+
+<button onclick="addTrip()">Save Trip</button>
+
+<h4>Monthly Filter</h4>
+<input type="month" id="monthFilter" onchange="render()">
+
+<div class="table-box">
+<table>
+<thead><tr>
+<th>Date</th><th>Vehicle</th><th>Driver</th>
+<th>Bhada</th><th>Karcha</th><th>Profit</th><th>Bill</th><th>Print</th>
+</tr></thead>
+<tbody id="tTable"></tbody>
+</table>
+</div>
+
+<button onclick="exportExcel()">Export Excel</button>
+<button onclick="exportPDF()">Export PDF</button>
+</div>
+
+</div>
+
+<script>
+let vehicles=[], drivers=[], trips=[];
+
+// SHOW SECTION
+function show(id){
+document.querySelectorAll('.section').forEach(s=>s.classList.add('hidden'));
+document.getElementById(id).classList.remove('hidden');
+}
+
+// LOGIN
+function login(){
+let u=document.getElementById("loginUser").value;
+let p=document.getElementById("loginPass").value;
+if(u==="admin" && p==="1234"){
+document.getElementById("loginScreen").classList.add("hidden");
+document.getElementById("system").classList.remove("hidden");
+render();
+}else{
+alert("Invalid credentials");
+}
+}
+
+// ADD VEHICLE
+function addVehicle(){
+if(!vNo.value)return alert("Enter Vehicle No");
+vehicles.push({no:vNo.value,model:vModel.value});
+vNo.value=vModel.value="";
+render();
+}
+
+// ADD DRIVER
+function addDriver(){
+if(!dName.value)return alert("Enter Driver Name");
+drivers.push({name:dName.value,phone:dPhone.value});
+dName.value=dPhone.value="";
+render();
+}
+
+// ADD TRIP
+function addTrip(){
+if(!tDate.value || !tVehicle.value || !tDriver.value) return alert("Fill date, vehicle, driver");
+let bh=+tBhada.value||0;
+let k=(+tToll.value||0)+(+tFuel.value||0)+(+tOther.value||0);
+trips.push({
+date:tDate.value,
+vehicle:tVehicle.value,
+driver:tDriver.value,
+bill:tBill.value,
+bh,k,profit:bh-k
+});
+tDate.value=tBill.value=tBhada.value=tToll.value=tFuel.value=tOther.value="";
+render();
+}
+
+// PRINT BILL
+function printBill(i){
+let t = trips[i];
+let w = window.open();
+w.document.write(`<h2>Shivam Transport</h2>
+<p>Date: ${t.date}</p>
+<p>Vehicle: ${t.vehicle}</p>
+<p>Driver: ${t.driver}</p>
+<p>Bill No: ${t.bill}</p>
+<p>Bhada: ₹${t.bh}</p>
+<p>Karcha: ₹${t.k}</p>
+<p>Profit: ₹${t.profit}</p>
+`);
+w.print();
+}
+
+// EXPORT EXCEL
+function exportExcel(){
+let ws=XLSX.utils.table_to_sheet(document.querySelector("#tTable"));
+let wb=XLSX.utils.book_new();
+XLSX.utils.book_append_sheet(wb,ws,"Trips");
+XLSX.writeFile(wb,"Trips.xlsx");
+}
+
+// EXPORT PDF
+function exportPDF(){
+const { jsPDF } = window.jspdf;
+let doc = new jsPDF();
+doc.text("Trips Report",10,10);
+doc.autoTable({html:"#tTable",startY:20});
+doc.save("Trips.pdf");
+}
+
+// RENDER ALL
+function render(){
+tVehicle.innerHTML=`<option value="">Select Vehicle</option>`;
+vehicles.forEach(v=>tVehicle.innerHTML+=`<option>${v.no}</option>`);
+tDriver.innerHTML=`<option value="">Select Driver</option>`;
+drivers.forEach(d=>tDriver.innerHTML+=`<option>${d.name}</option>`);
+
+// VEHICLE TABLE
+vTable.innerHTML="";
+vehicles.forEach((v,i)=>{
+vTable.innerHTML+=`<tr><td>${v.no}</td><td>${v.model}</td><td><button onclick="vehicles.splice(${i},1);render()">Del</button></td></tr>`;
+});
+
+// DRIVER TABLE
+dTable.innerHTML="";
+drivers.forEach((d,i)=>{
+dTable.innerHTML+=`<tr><td>${d.name}</td><td>${d.phone}</td><td><button onclick="drivers.splice(${i},1);render()">Del</button></td></tr>`;
+});
+
+// TRIPS TABLE
+tTable.innerHTML="";
+let month=monthFilter.value;
+let tb=0,tk=0,vp={};
+trips.forEach((t,i)=>{
+if(month && !t.date.startsWith(month)) return;
+tb+=t.bh; tk+=t.k;
+vp[t.vehicle]=(vp[t.vehicle]||{b:0,k:0});
+vp[t.vehicle].b+=t.bh; vp[t.vehicle].k+=t.k;
+
+tTable.innerHTML+=`<tr>
+<td>${t.date}</td><td>${t.vehicle}</td><td>${t.driver}</td>
+<td>${t.bh}</td><td>${t.k}</td><td>${t.profit}</td>
+<td>${t.bill}</td>
+<td><button onclick="printBill(${i})">Print</button></td>
+</tr>`;
+});
+
+// DASHBOARD
+dv.innerText=vehicles.length;
+dd.innerText=drivers.length;
+db.innerText=tb;
+dk.innerText=tk;
+dp.innerText=tb-tk;
+
+// VEHICLE PROFIT
+vehicleProfit.innerHTML="";
+for(let v in vp){
+vehicleProfit.innerHTML+=`<tr><td>${v}</td><td>${vp[v].b}</td><td>${vp[v].k}</td><td>${vp[v].b-vp[v].k}</td></tr>`;
+}
+}
+</script>
+
+</body>
+</html>
